@@ -1,0 +1,25 @@
+- name: Create application directory
+  file:
+    path: /opt/example-voting-app
+    state: directory
+
+- name: Copy environment file
+  template:
+    src: app.env.j2
+    dest: /opt/example-voting-app/.env
+    mode: 0600
+
+- name: Pull Docker image
+  docker_image:
+    name: gcr.io/your-gcp-project-id/example-voting-app
+    tag: latest
+    source: pull
+
+- name: Run Docker container
+  docker_container:
+    name: voting_app
+    image: gcr.io/your-gcp-project-id/example-voting-app:latest
+    state: started
+    ports:
+      - "80:80"
+    env_file: /opt/example-voting-app/.env

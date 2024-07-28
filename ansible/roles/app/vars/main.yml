@@ -1,0 +1,4 @@
+db_host: your-cloud-sql-instance-ip
+db_user: appuser
+db_password: appuser_password
+db_name: exampledb

@@ -1,0 +1,53 @@
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  GCP_PROJECT_ID: $GCP_PROJECT_ID
+  GCP_ZONE: $GCP_ZONE
+  GCP_INSTANCE_NAME: $GCP_INSTANCE_NAME
+  SSH_USER: $SSH_USER
+  IMAGE_TAG: "latest"
+
+before_script:
+  - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+  - chmod 600 ~/.ssh/id_rsa
+  - eval $(ssh-agent -s)
+  - ssh-add ~/.ssh/id_rsa
+  - mkdir -p ~/.ssh
+  - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+
+test:
+  stage: test
+  image: node:14
+  script:
+    - npm install
+    - npm test
+
+build:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker build -t gcr.io/$GCP_PROJECT_ID/example-voting-app:$IMAGE_TAG .
+    - echo $GCP_CREDENTIALS | base64 --decode -i > $HOME/gcloud-service-key.json
+    - gcloud auth activate-service-account --key-file $HOME/gcloud-service-key.json
+    - gcloud --quiet config set project $GCP_PROJECT_ID
+    - gcloud --quiet config set compute/zone $GCP_ZONE
+    - gcloud auth configure-docker
+    - docker push gcr.io/$GCP_PROJECT_ID/example-voting-app:$IMAGE_TAG
+
+deploy:
+  stage: deploy
+  script:
+    - ssh $SSH_USER@$(gcloud compute instances describe $GCP_INSTANCE_NAME --zone=$GCP_ZONE --format='get(networkInterfaces[0].accessConfigs[0].natIP)') 'docker pull gcr.io/$GCP_PROJECT_ID/example-voting-app:$IMAGE_TAG && docker-compose up -d'
+  only:
+    - main
+
+rollback:
+  stage: deploy
+  script:
+    - ssh $SSH_USER@$(gcloud compute instances describe $GCP_INSTANCE_NAME --zone=$GCP_ZONE --format='get(networkInterfaces[0].accessConfigs[0].natIP)') 'docker-compose down && docker-compose up -d'
+  when: manual

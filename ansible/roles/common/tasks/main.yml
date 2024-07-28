@@ -1,0 +1,16 @@
+- name: Update and upgrade apt packages
+  apt:
+    update_cache: yes
+    upgrade: dist
+
+- name: Install necessary packages
+  apt:
+    name:
+      - docker.io
+      - python3-pip
+      - git
+    state: present
+
+- name: Install Docker Compose
+  pip:
+    name: docker-compose
